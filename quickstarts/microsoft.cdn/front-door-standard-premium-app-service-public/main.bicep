@@ -1,8 +1,11 @@
+@description('Basename for other resources')
+param baseName string = resourceGroup().name
+
 @description('The location into which regionally scoped resources should be deployed. Note that Front Door is a global resource.')
 param location string = resourceGroup().location
 
 @description('The name of the App Service application to create. This must be globally unique.')
-param appName string = 'myapp-${uniqueString(resourceGroup().id)}'
+param appName string = '${baseName}-app-${uniqueString(resourceGroup().id)}'
 
 @description('The name of the SKU to use when creating the App Service plan.')
 param appServicePlanSkuName string = 'S1'
@@ -20,12 +23,17 @@ param frontDoorEndpointName string = 'afd-${uniqueString(resourceGroup().id)}'
 ])
 param frontDoorSkuName string = 'Standard_AzureFrontDoor'
 
-var appServicePlanName = 'AppServicePlan'
+@description('Url to the github repo with a static web site')
+param repositoryUrl string = 'https://github.com/matsest/<repo>'
+@description('Name of the branch of the github repo')
+param repositoryBranch string = 'main'
 
-var frontDoorProfileName = 'MyFrontDoor'
-var frontDoorOriginGroupName = 'MyOriginGroup'
-var frontDoorOriginName = 'MyAppServiceOrigin'
-var frontDoorRouteName = 'MyRoute'
+// Names
+var appServicePlanName = '${baseName}-plan'
+var frontDoorProfileName = '${baseName}-fd'
+var frontDoorOriginGroupName = '${appName}-og'
+var frontDoorOriginName = appName
+var frontDoorRouteName = 'default'
 
 resource frontDoorProfile 'Microsoft.Cdn/profiles@2021-06-01' = {
   name: frontDoorProfileName
@@ -72,10 +80,20 @@ resource app 'Microsoft.Web/sites@2020-06-01' = {
               frontDoorProfile.properties.frontDoorId
             ]
           }
-          name: 'Allow traffic from Front Door'
+          name: 'Allow traffic from ${frontDoorProfileName} Front Door'
         }
       ]
     }
+  }
+}
+
+resource srcControls 'Microsoft.Web/sites/sourcecontrols@2021-01-01' = {
+  name: 'web'
+  parent: app
+  properties: {
+    repoUrl: repositoryUrl
+    branch: repositoryBranch
+    isManualIntegration: true
   }
 }
 
@@ -141,5 +159,5 @@ resource frontDoorRoute 'Microsoft.Cdn/profiles/afdEndpoints/routes@2021-06-01' 
   }
 }
 
-output appServiceHostName string = app.properties.defaultHostName
-output frontDoorEndpointHostName string = frontDoorEndpoint.properties.hostName
+output appServiceHostName string = 'https://${app.properties.defaultHostName}'
+output frontDoorEndpointHostName string = 'https://${frontDoorEndpoint.properties.hostName}'
